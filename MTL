@@ -1,0 +1,125 @@
+Algorithm: PLE–CNN multi-task inversion of LAI, LCC, and CCC
+
+Input:
+    Feature matrix X
+    Target matrix Y = [LAI, LCC, CCC]
+    Task weights w = [0.35, 0.325, 0.325]
+    Batch size B = 64
+    Maximum epochs E = 50
+    Learning rate η = 0.001
+    Weight decay λ = 0.0001
+    Early-stopping patience P = 3
+    Random seed s
+
+Output:
+    Predicted LAI, LCC, and CCC
+    Evaluation metrics for each task
+
+1. Set random seed s for Python, NumPy, PyTorch, and CUDA.
+
+2. Split the development dataset:
+       Training set ← Prosail simulted samples
+       Test set ← independent test samples
+
+3. Standardize input features:
+       Fit StandardScaler using training features
+       Transform training, validation, and test features
+
+4. Construct the PLE–CNN model:
+
+       4.1 Input embedding:
+           Map the standardized input features to a
+           16-dimensional embedding using a linear layer
+
+       4.2 Construct two progressive PLE layers:
+           For each PLE layer:
+               Build one shared CNN expert
+               Build one task-specific CNN expert for each task
+
+               Each CNN expert contains:
+                   1D convolution
+                       filters = 16
+                       kernel size = 3
+                   ReLU activation
+                   Max pooling with kernel size 2
+                   Flatten operation
+                   Fully connected layer
+                   Batch normalization
+                   ReLU activation
+                   Dropout = 0.5
+
+               Set expert output dimensions:
+                   First PLE layer: 512
+                   Second PLE layer: 256
+
+               For each task:
+                   Calculate gate weights using Softmax
+                   Combine the shared expert and corresponding
+                   task-specific expert outputs
+
+       4.3 Construct independent task towers:
+           For each of LAI, LCC, and CCC:
+               Input the corresponding PLE feature
+               Apply a CNN feature extraction module
+               Apply fully connected layers:
+                   128 → 64 → 1
+               Output one continuous prediction value
+
+5. Initialize training:
+       Loss function ← MSE for each task
+       Optimizer ← Adam
+       Learning rate ← 0.001
+       Weight decay ← 0.0001
+       Best validation loss ← infinity
+       No-improvement counter ← 0
+
+6. For epoch = 1 to E:
+
+       6.1 Training stage:
+           Shuffle the training samples
+           Divide samples into mini-batches of size B
+
+           For each mini-batch:
+               Forward propagate through PLE–CNN
+               Obtain predictions:
+                   ŷLAI, ŷLCC, ŷCCC
+
+               Calculate task losses:
+                   LLAI = MSE(yLAI, ŷLAI)
+                   LLCC = MSE(yLCC, ŷLCC)
+                   LCCC = MSE(yCCC, ŷCCC)
+
+               Calculate weighted multi-task loss:
+                   L = 0.35 × LLAI
+                     + 0.325 × LLCC
+                     + 0.325 × LCCC
+
+               Clear gradients
+               Backpropagate L
+               Update model parameters using Adam
+
+       6.2 Validation stage:
+           Predict LAI, LCC, and CCC on the validation set
+           Calculate validation MSE for each task
+           Calculate weighted validation loss
+
+       6.3 Model selection:
+           If weighted validation loss improves:
+               Save current model parameters
+               Reset no-improvement counter
+           Otherwise:
+               Increase no-improvement counter by 1
+
+           If no-improvement counter reaches P:
+               Stop training
+
+7. Load the model with the lowest weighted validation loss.
+
+8. Apply the selected model to the validation and test sets.
+
+9. For LAI, LCC, and CCC separately, calculate:
+       R²
+       RMSE
+       RRMSE
+
+10. Return predictions and evaluation results.
