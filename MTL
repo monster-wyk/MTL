@@ -1,125 +1,744 @@
-Algorithm: PLE–CNN multi-task inversion of LAI, LCC, and CCC
+Algorithm S1. PLE–CNN multi-task retrieval of LAI, LCC, and CCC
 
 Input:
-    Feature matrix X
-    Target matrix Y = [LAI, LCC, CCC]
-    Task weights w = [0.35, 0.325, 0.325]
-    Batch size B = 64
-    Maximum epochs E = 50
-    Learning rate η = 0.001
-    Weight decay λ = 0.0001
-    Early-stopping patience P = 3
-    Random seed s
+    Training feature matrix:
+        Xtrain
+
+    Training target matrix:
+        Ytrain = [yLAI, yLCC, yCCC]
+
+    Validation feature matrix:
+        Xval
+
+    Validation target matrix:
+        Yval = [yLAI,val, yLCC,val, yCCC,val]
+
+    Evaluation feature matrix:
+        Xeval
+
+    Evaluation target matrix:
+        Yeval = [yLAI,eval, yLCC,eval, yCCC,eval]
+
+    Task weights:
+        wLAI = 0.35
+        wLCC = 0.325
+        wCCC = 0.325
+
+    Input embedding dimension:
+        d = 16
+
+    Number of PLE layers:
+        L = 2
+
+    CNN parameters:
+        Number of convolution filters = 16
+        Kernel size = 3
+        Max-pooling kernel size = 2
+        Activation function = ReLU
+        Normalization = BatchNorm1d
+        Dropout rate = 0.5
+
+    Expert output dimensions:
+        First PLE layer = 512
+        Second PLE layer = 256
+
+    Task tower hidden dimensions:
+        128 → 64 → 1
+
+    Batch size:
+        B = 64
+
+    Maximum epochs:
+        E = 50
+
+    Learning rate:
+        η = 0.001
+
+    Weight decay:
+        λ = 0.0001
+
+    Optimizer:
+        Adam
+
+    Early-stopping patience:
+        P = 3
+
+    Random seed:
+        s = 42
+
 
 Output:
-    Predicted LAI, LCC, and CCC
-    Evaluation metrics for each task
+    Retrieved LAI, LCC, and CCC
 
-1. Set random seed s for Python, NumPy, PyTorch, and CUDA.
+    Evaluation metrics for each task:
+        R²
+        RMSE
+        RRMSE
+        MAE
+        Bias
 
-2. Split the development dataset:
-       Training set ← Prosail simulted samples
-       Test set ← independent test samples
 
-3. Standardize input features:
-       Fit StandardScaler using training features
-       Transform training, validation, and test features
+------------------------------------------------------------
+1. Initialize the training environment
+------------------------------------------------------------
 
-4. Construct the PLE–CNN model:
+    Set random seed s for:
+        Python
+        NumPy
+        PyTorch
+        CUDA
 
-       4.1 Input embedding:
-           Map the standardized input features to a
-           16-dimensional embedding using a linear layer
+    Initialize the PLE–CNN model parameters.
 
-       4.2 Construct two progressive PLE layers:
-           For each PLE layer:
-               Build one shared CNN expert
-               Build one task-specific CNN expert for each task
 
-               Each CNN expert contains:
-                   1D convolution
-                       filters = 16
-                       kernel size = 3
-                   ReLU activation
-                   Max pooling with kernel size 2
-                   Flatten operation
-                   Fully connected layer
-                   Batch normalization
-                   ReLU activation
-                   Dropout = 0.5
+------------------------------------------------------------
+2. Preprocess input features
+------------------------------------------------------------
 
-               Set expert output dimensions:
-                   First PLE layer: 512
-                   Second PLE layer: 256
+    Preprocess Xtrain, Xval, and Xeval according to the
+    predefined feature-processing and domain-adaptation
+    procedure.
 
-               For each task:
-                   Calculate gate weights using Softmax
-                   Combine the shared expert and corresponding
-                   task-specific expert outputs
+    Note:
+        When JDA is used, the corresponding JDA-transformed
+        features are provided to the PLE–CNN model.
+        The detailed JDA procedure is described separately
+        in Text S4.
 
-       4.3 Construct independent task towers:
-           For each of LAI, LCC, and CCC:
-               Input the corresponding PLE feature
-               Apply a CNN feature extraction module
-               Apply fully connected layers:
-                   128 → 64 → 1
-               Output one continuous prediction value
 
-5. Initialize training:
-       Loss function ← MSE for each task
-       Optimizer ← Adam
-       Learning rate ← 0.001
-       Weight decay ← 0.0001
-       Best validation loss ← infinity
-       No-improvement counter ← 0
+------------------------------------------------------------
+3. Standardize the target variables
+------------------------------------------------------------
 
-6. For epoch = 1 to E:
+    Because LAI, LCC, and CCC have different physical units
+    and numerical ranges, standardize the three target
+    variables separately before multi-task optimization.
 
-       6.1 Training stage:
-           Shuffle the training samples
-           Divide samples into mini-batches of size B
 
-           For each mini-batch:
-               Forward propagate through PLE–CNN
-               Obtain predictions:
-                   ŷLAI, ŷLCC, ŷCCC
+    For each task t ∈ {LAI, LCC, CCC}:
 
-               Calculate task losses:
-                   LLAI = MSE(yLAI, ŷLAI)
-                   LLCC = MSE(yLCC, ŷLCC)
-                   LCCC = MSE(yCCC, ŷCCC)
+        Calculate the mean and standard deviation using
+        only the training target values:
 
-               Calculate weighted multi-task loss:
-                   L = 0.35 × LLAI
-                     + 0.325 × LLCC
-                     + 0.325 × LCCC
+            μt = Mean(ytrain,t)
 
-               Clear gradients
-               Backpropagate L
-               Update model parameters using Adam
+            σt = StandardDeviation(ytrain,t)
 
-       6.2 Validation stage:
-           Predict LAI, LCC, and CCC on the validation set
-           Calculate validation MSE for each task
-           Calculate weighted validation loss
 
-       6.3 Model selection:
-           If weighted validation loss improves:
-               Save current model parameters
-               Reset no-improvement counter
-           Otherwise:
-               Increase no-improvement counter by 1
+        Standardize the training targets:
 
-           If no-improvement counter reaches P:
-               Stop training
+            y*t =
+                (ytrain,t - μt) / σt
 
-7. Load the model with the lowest weighted validation loss.
 
-8. Apply the selected model to the validation and test sets.
+        Standardize the validation targets using the same
+        training-derived statistics:
 
-9. For LAI, LCC, and CCC separately, calculate:
-       R²
-       RMSE
-       RRMSE
+            y*t,val =
+                (yval,t - μt) / σt
 
-10. Return predictions and evaluation results.
+
+        Store μt and σt for inverse transformation after
+        prediction.
+
+
+    Obtain the standardized target matrices:
+
+        Y*train =
+            [y*LAI, y*LCC, y*CCC]
+
+        Y*val =
+            [y*LAI,val, y*LCC,val, y*CCC,val]
+
+
+------------------------------------------------------------
+4. Construct the input embedding layer
+------------------------------------------------------------
+
+    Project each input feature vector into a
+    16-dimensional representation:
+
+        h(0) = Linear(X)
+
+    Use h(0) as the initial representation for:
+
+        LAI-specific branch
+        LCC-specific branch
+        CCC-specific branch
+        Shared branch
+
+
+------------------------------------------------------------
+5. Construct the first PLE extraction layer
+------------------------------------------------------------
+
+    5.1 Construct four CNN experts:
+
+        One LAI-specific CNN expert:
+            ELAI(1)
+
+        One LCC-specific CNN expert:
+            ELCC(1)
+
+        One CCC-specific CNN expert:
+            ECCC(1)
+
+        One shared CNN expert:
+            ES(1)
+
+
+    5.2 Each CNN expert consists of:
+
+        Conv1D:
+            output channels = 16
+            kernel size = 3
+
+        ReLU
+
+        MaxPool1D:
+            kernel size = 2
+
+        Flatten
+
+        Fully connected layer:
+            output dimension = 512
+
+        BatchNorm1d
+
+        ReLU
+
+        Dropout:
+            rate = 0.5
+
+
+    5.3 Calculate the expert outputs:
+
+        eLAI(1) =
+            ELAI(1)(h(0))
+
+        eLCC(1) =
+            ELCC(1)(h(0))
+
+        eCCC(1) =
+            ECCC(1)(h(0))
+
+        eS(1) =
+            ES(1)(h(0))
+
+
+    5.4 Generate the LAI-specific representation
+
+        Calculate Softmax gate weights:
+
+            gLAI(1) =
+                Softmax(GateLAI(1)(h(0)))
+
+
+        Combine the LAI-specific and shared expert outputs:
+
+            hLAI(1) =
+                gLAI,specific(1) × eLAI(1)
+                +
+                gLAI,shared(1) × eS(1)
+
+
+    5.5 Generate the LCC-specific representation
+
+        Calculate Softmax gate weights:
+
+            gLCC(1) =
+                Softmax(GateLCC(1)(h(0)))
+
+
+        Combine the LCC-specific and shared expert outputs:
+
+            hLCC(1) =
+                gLCC,specific(1) × eLCC(1)
+                +
+                gLCC,shared(1) × eS(1)
+
+
+    5.6 Generate the CCC-specific representation
+
+        Calculate Softmax gate weights:
+
+            gCCC(1) =
+                Softmax(GateCCC(1)(h(0)))
+
+
+        Combine the CCC-specific and shared expert outputs:
+
+            hCCC(1) =
+                gCCC,specific(1) × eCCC(1)
+                +
+                gCCC,shared(1) × eS(1)
+
+
+    5.7 Generate the shared representation
+
+        Calculate shared Softmax gate weights:
+
+            gS(1) =
+                Softmax(GateS(1)(h(0)))
+
+
+        Combine all task-specific and shared expert outputs:
+
+            hS(1) =
+                gS,LAI(1) × eLAI(1)
+                +
+                gS,LCC(1) × eLCC(1)
+                +
+                gS,CCC(1) × eCCC(1)
+                +
+                gS,shared(1) × eS(1)
+
+
+    5.8 Pass the following representations to the
+        second PLE layer:
+
+            hLAI(1)
+            hLCC(1)
+            hCCC(1)
+            hS(1)
+
+
+------------------------------------------------------------
+6. Construct the second PLE extraction layer
+------------------------------------------------------------
+
+    6.1 Construct four CNN experts:
+
+        One LAI-specific CNN expert:
+            ELAI(2)
+
+        One LCC-specific CNN expert:
+            ELCC(2)
+
+        One CCC-specific CNN expert:
+            ECCC(2)
+
+        One shared CNN expert:
+            ES(2)
+
+
+    6.2 Use the same CNN expert structure as in the
+        first PLE layer, but set the expert output
+        dimension to 256.
+
+
+    6.3 Calculate the task-specific expert outputs:
+
+        eLAI(2) =
+            ELAI(2)(hLAI(1))
+
+        eLCC(2) =
+            ELCC(2)(hLCC(1))
+
+        eCCC(2) =
+            ECCC(2)(hCCC(1))
+
+
+    6.4 Calculate the shared expert output:
+
+        eS(2) =
+            ES(2)(hS(1))
+
+
+    6.5 Generate the final LAI representation
+
+        Calculate:
+
+            gLAI(2) =
+                Softmax(GateLAI(2)(hLAI(1)))
+
+
+        Combine:
+
+            hLAI(2) =
+                gLAI,specific(2) × eLAI(2)
+                +
+                gLAI,shared(2) × eS(2)
+
+
+    6.6 Generate the final LCC representation
+
+        Calculate:
+
+            gLCC(2) =
+                Softmax(GateLCC(2)(hLCC(1)))
+
+
+        Combine:
+
+            hLCC(2) =
+                gLCC,specific(2) × eLCC(2)
+                +
+                gLCC,shared(2) × eS(2)
+
+
+    6.7 Generate the final CCC representation
+
+        Calculate:
+
+            gCCC(2) =
+                Softmax(GateCCC(2)(hCCC(1)))
+
+
+        Combine:
+
+            hCCC(2) =
+                gCCC,specific(2) × eCCC(2)
+                +
+                gCCC,shared(2) × eS(2)
+
+
+    6.8 Obtain the final task-specific representations:
+
+            hLAI(2)
+            hLCC(2)
+            hCCC(2)
+
+
+        No additional shared representation is generated
+        after the final PLE layer.
+
+
+------------------------------------------------------------
+7. Construct the task-specific prediction towers
+------------------------------------------------------------
+
+    For each task t ∈ {LAI, LCC, CCC}:
+
+        Input:
+            ht(2)
+
+
+        Apply task-specific CNN feature extraction:
+
+            Conv1D:
+                filters = 16
+                kernel size = 3
+
+            ReLU
+
+            MaxPool1D:
+                kernel size = 2
+
+            Flatten
+
+
+        Apply task-specific fully connected layers:
+
+            Linear → 128
+            BatchNorm1d
+            ReLU
+            Dropout(0.5)
+
+                 ↓
+
+            Linear → 64
+            BatchNorm1d
+            ReLU
+            Dropout(0.5)
+
+                 ↓
+
+            Linear → 1
+
+
+        Obtain the standardized prediction:
+
+            ŷ*t
+
+
+    Therefore, obtain:
+
+        ŷ*LAI
+        ŷ*LCC
+        ŷ*CCC
+
+
+------------------------------------------------------------
+8. Define the task-specific losses
+------------------------------------------------------------
+
+    Calculate MSE separately in the standardized target space:
+
+        LLAI =
+            MSE(y*LAI, ŷ*LAI)
+
+        LLCC =
+            MSE(y*LCC, ŷ*LCC)
+
+        LCCC =
+            MSE(y*CCC, ŷ*CCC)
+
+
+    Because LAI, LCC, and CCC have been standardized
+    separately, these task-specific losses are on
+    comparable numerical scales.
+
+
+------------------------------------------------------------
+9. Define the weighted multi-task loss
+------------------------------------------------------------
+
+    Calculate the total training loss:
+
+        Ltrain =
+            0.35  × LLAI
+            +
+            0.325 × LLCC
+            +
+            0.325 × LCCC
+
+
+    where:
+
+        wLAI + wLCC + wCCC = 1
+
+
+------------------------------------------------------------
+10. Initialize optimization
+------------------------------------------------------------
+
+    Optimizer:
+        Adam
+
+    Learning rate:
+        0.001
+
+    Weight decay:
+        0.0001
+
+    Best validation loss:
+        +∞
+
+    No-improvement counter:
+        0
+
+
+------------------------------------------------------------
+11. Train the PLE–CNN model
+------------------------------------------------------------
+
+    For epoch = 1 to E:
+
+
+        11.1 Training stage
+
+            Set model to training mode.
+
+            Shuffle the training samples.
+
+            Divide the training samples into
+            mini-batches of size B = 64.
+
+
+            For each mini-batch:
+
+                Forward propagate through PLE–CNN.
+
+                Obtain:
+
+                    ŷ*LAI
+                    ŷ*LCC
+                    ŷ*CCC
+
+
+                Calculate:
+
+                    LLAI
+                    LLCC
+                    LCCC
+
+
+                Calculate weighted training loss:
+
+                    Ltrain =
+                        0.35  × LLAI
+                        +
+                        0.325 × LLCC
+                        +
+                        0.325 × LCCC
+
+
+                Clear previous gradients.
+
+                Backpropagate Ltrain.
+
+                Update model parameters using Adam.
+
+
+        11.2 Validation stage
+
+            Set model to evaluation mode.
+
+            Disable gradient calculation.
+
+            Predict the standardized target variables
+            using Xval:
+
+                ŷ*LAI,val
+                ŷ*LCC,val
+                ŷ*CCC,val
+
+
+            Calculate task-specific validation losses:
+
+                LLAI,val =
+                    MSE(y*LAI,val, ŷ*LAI,val)
+
+                LLCC,val =
+                    MSE(y*LCC,val, ŷ*LCC,val)
+
+                LCCC,val =
+                    MSE(y*CCC,val, ŷ*CCC,val)
+
+
+            Calculate the weighted validation loss:
+
+                Lval =
+                    0.35  × LLAI,val
+                    +
+                    0.325 × LLCC,val
+                    +
+                    0.325 × LCCC,val
+
+
+        11.3 Model selection
+
+            If Lval < Best validation loss:
+
+                Best validation loss ← Lval
+
+                Save the current model parameters.
+
+                No-improvement counter ← 0
+
+
+            Otherwise:
+
+                No-improvement counter ←
+                    No-improvement counter + 1
+
+
+        11.4 Early stopping
+
+            If No-improvement counter ≥ P:
+
+                Stop training.
+
+
+------------------------------------------------------------
+12. Restore the optimal model
+------------------------------------------------------------
+
+    Load the model parameters corresponding to the
+    minimum weighted validation loss.
+
+
+------------------------------------------------------------
+13. Perform evaluation
+------------------------------------------------------------
+
+    Apply the selected PLE–CNN model to Xeval.
+
+    Obtain standardized predictions:
+
+        ŷ*LAI,eval
+        ŷ*LCC,eval
+        ŷ*CCC,eval
+
+
+------------------------------------------------------------
+14. Inverse-transform the predictions
+------------------------------------------------------------
+
+    Convert each standardized prediction back to its
+    original physical scale using the corresponding
+    training-derived target scaler.
+
+
+    For LAI:
+
+        ŷLAI =
+            ŷ*LAI × σLAI + μLAI
+
+
+    For LCC:
+
+        ŷLCC =
+            ŷ*LCC × σLCC + μLCC
+
+
+    For CCC:
+
+        ŷCCC =
+            ŷ*CCC × σCCC + μCCC
+
+
+    Therefore, the predictions are restored to:
+
+        LAI:
+            m²/m²
+
+        LCC:
+            μg/cm²
+
+        CCC:
+            g/m²
+
+
+------------------------------------------------------------
+15. Calculate final evaluation metrics
+------------------------------------------------------------
+
+    Using the original observed values and the
+    inverse-transformed predictions, calculate separately
+    for LAI, LCC, and CCC:
+
+        R²
+
+        RMSE
+
+        RRMSE
+
+        MAE
+
+        Bias
+
+
+    Report:
+
+        RMSE, MAE, and Bias for LAI:
+            m²/m²
+
+        RMSE, MAE, and Bias for LCC:
+            μg/cm²
+
+        RMSE, MAE, and Bias for CCC:
+            g/m²
+
+        RRMSE:
+            %
+
+
+------------------------------------------------------------
+16. Return results
+------------------------------------------------------------
+
+    Return:
+
+        Retrieved LAI
+        Retrieved LCC
+        Retrieved CCC
+
+        R²
+        RMSE
+        RRMSE
+        MAE
+        Bias
+
+        for each task.
