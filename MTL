@@ -99,21 +99,9 @@ Output:
     predefined feature-processing and domain-adaptation
     procedure.
 
-    Note:
-        When JDA is used, the corresponding JDA-transformed
-        features are provided to the PLE–CNN model.
-        The detailed JDA procedure is described separately
-        in Text S4.
-
-
 ------------------------------------------------------------
 3. Standardize the target variables
 ------------------------------------------------------------
-
-    Because LAI, LCC, and CCC have different physical units
-    and numerical ranges, standardize the three target
-    variables separately before multi-task optimization.
-
 
     For each task t ∈ {LAI, LCC, CCC}:
 
@@ -463,8 +451,6 @@ Output:
 8. Define the task-specific losses
 ------------------------------------------------------------
 
-    Calculate MSE separately in the standardized target space:
-
         LLAI =
             MSE(y*LAI, ŷ*LAI)
 
@@ -474,10 +460,6 @@ Output:
         LCCC =
             MSE(y*CCC, ŷ*CCC)
 
-
-    Because LAI, LCC, and CCC have been standardized
-    separately, these task-specific losses are on
-    comparable numerical scales.
 
 
 ------------------------------------------------------------
@@ -655,11 +637,6 @@ Output:
 ------------------------------------------------------------
 14. Inverse-transform the predictions
 ------------------------------------------------------------
-
-    Convert each standardized prediction back to its
-    original physical scale using the corresponding
-    training-derived target scaler.
-
 
     For LAI:
 
